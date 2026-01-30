@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Expense Tracker – Full Demo</title>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<h1>Expense Tracker</h1>
+
+<!-- ================= AUTH ================= -->
+<h2>Authentication</h2>
+<button onclick="loginUser()">Login</button>
+
+<hr>
+
+<!-- ================= ADD EXPENSE FORM ================= -->
+<h2>Add Expense</h2>
+
+<label>Amount:</label><br>
+<input type="number" id="amount"><br><br>
+
+<label>Description:</label><br>
+<input type="text" id="description"><br><br>
+
+<label>Date:</label><br>
+<input type="date" id="expense_date"><br><br>
+
+<label>Category ID:</label><br>
+<input type="number" id="category_id" value="1"><br><br>
+
+<button onclick="addExpense()">Add Expense</button>
+
+<hr>
+
+<!-- ================= VIEW ================= -->
+<h2>Expenses</h2>
+
+<input type="text" id="search" placeholder="Search description"><br><br>
+
+<button onclick="viewExpenses()">View Expenses</button>
+<button onclick="prevPage()">Previous</button>
+<button onclick="nextPage()">Next</button>
+
+<hr>
+
+<button onclick="viewMonthlyAnalytics()">View Monthly Analytics</button>
+
+<!-- ================= OUTPUT ================= -->
+<h3>Output</h3>
+<pre id="output"></pre>
+
+<h3>Monthly Chart</h3>
+<canvas id="monthlyChart"></canvas>
+
+<script>
+let TOKEN = "";
+let currentPage = 1;
+const limit = 5;
+let chartInstance = null;
+
+// ---------- LOGIN ----------
+function loginUser() {
+    fetch("http://127.0.0.1:8000/api/auth/login", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            email: "test@example.com",
+            password: "password123"
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        TOKEN = data.token;
+        document.getElementById("output").textContent = "Login successful.";
+    });
+}
+
+// ---------- ADD EXPENSE ----------
+function addExpense() {
+    const amount = document.getElementById("amount").value;
+    const description = document.getElementById("description").value;
+    const expense_date = document.getElementById("expense_date").value;
+    const category_id = document.getElementById("category_id").value;
+
+    fetch("http://127.0.0.1:8000/api/expenses", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + TOKEN
+        },
+        body: JSON.stringify({
+            amount: amount,
+            description: description,
+            expense_date: expense_date,
+            category_id: category_id
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById("output").textContent =
+            "Expense added successfully";
+
+        // Clear form
+        document.getElementById("amount").value = "";
+        document.getElementById("description").value = "";
+        document.getElementById("expense_date").value = "";
+
+        // Refresh list
+        viewExpenses();
+    });
+}
+
+// ---------- VIEW EXPENSES ----------
+function viewExpenses() {
+    const search = document.getElementById("search").value;
+
+    fetch(`http://127.0.0.1:8000/api/expenses?page=${currentPage}&limit=${limit}&search=${search}`, {
+        headers: {"Authorization": "Bearer " + TOKEN}
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById("output").textContent =
+            JSON.stringify(data, null, 2);
+    });
+}
+
+function nextPage() {
+    currentPage++;
+    viewExpenses();
+}
+
+function prevPage() {
+    if (currentPage > 1) {
+        currentPage--;
+        viewExpenses();
+    }
+}
+
+// ---------- MONTHLY ANALYTICS ----------
+function viewMonthlyAnalytics() {
+    fetch("http://127.0.0.1:8000/api/expenses/analytics/monthly", {
+        headers: {"Authorization": "Bearer " + TOKEN}
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById("output").textContent =
+            JSON.stringify(data, null, 2);
+
+        const labels = data.map(d => d.month);
+        const totals = data.map(d => d.total_amount);
+
+        const ctx = document.getElementById("monthlyChart");
+
+        if (chartInstance) chartInstance.destroy();
+
+        chartInstance = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: "Monthly Expenses",
+                    data: totals
+                }]
+            }
+        });
+    });
+}
+
+// ---------- AUTO SEARCH ----------
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("search").addEventListener("keyup", () => {
+        currentPage = 1;
+        viewExpenses();
+    });
+});
+</script>
+
+</body>
+</html>
+
+
